@@ -15,7 +15,7 @@ CTrade operacao;
 
 input double gain = 100; // GAIN
 input double loss = 100; // LOSS
-input string horario = "17:00";
+input string horario = "17:00"; // HORARIO MAX ABERTURA
 
 input double diferencaTopoFundo = 100; // DIFERENCAO TOPO FUNDO
 
@@ -23,6 +23,9 @@ int mDidi;
 int mCompra;
 int mVenda;
 int mZigZag;
+
+double topoEntrada = 0;
+double FundoEntrada = 0;
 
 
 double topo[4];
@@ -49,6 +52,7 @@ MqlRates BarData[1];
 
 bool ordemAberta = false;
 
+string sinal = "";
 
 
 double PrecoFechamentoPenultimoCandle = 1;
@@ -83,10 +87,36 @@ void OnTick()
     CopyRates(_Symbol, _Period, 1, 1, BarData);
 
     ordemAberta = OrdemAberta(_Symbol);
+    
+    
+    
+    
+    
+    
+    
 
 
     if (VerificarMudouCandle())
     {
+    
+    
+    if (ordemAberta)
+        {
+            
+            sinal = buscarSinal();
+            if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY &&  (fundo[2] >= BarData[0].low)  )
+            {
+                operacao.Sell(1, _Symbol, SymbolInfoDouble(_Symbol, SYMBOL_BID));
+            }
+            else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL &&  (    topo[2] <= BarData[0].high     ) )
+            {
+                operacao.Buy(1, _Symbol, SymbolInfoDouble(_Symbol, SYMBOL_BID));
+            }
+
+        }
+    
+    
+    
 
         ArraySetAsSeries(MediaCurtaArray, true);
         ArraySetAsSeries(MediaLongaArray, true);
@@ -106,37 +136,47 @@ void OnTick()
         if (MediaCurtaArray[1] > MediaLongaArray[1]
         && MediaCurtaArray[2] < MediaLongaArray[2]
         && horaOperar(horario)
-        && !ordemAberta
-        && buscarSinal() == "Compra"
+        && !ordemAberta){       
+        
+        
+        if( buscarSinal() == "Compra"
         //&& SymbolInfoDouble(_Symbol, SYMBOL_LAST) > MediaCompraArray[0]
         //&& SymbolInfoDouble(_Symbol, SYMBOL_LAST) > MediaSuperArray[0]
         )
         {
+        
+        
+            
             // datetime expiration = TimeTradeServer() + PeriodSeconds(PERIOD_M30);        
             //double precoReferencia = BarData[0].high;
             // operacao.BuyStop(1,precoReferencia,_Symbol,precoReferencia - loss,precoReferencia + gain,ORDER_TIME_SPECIFIED,expiration); 
             double precoReferencia = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
-            buscarSinal();
+            
             operacao.Buy(1, _Symbol, precoReferencia, precoReferencia - loss, precoReferencia + gain);
+        }
         }
 
         else if (
         MediaCurtaArray[1] < MediaLongaArray[1]
         && MediaCurtaArray[2] > MediaLongaArray[2]
         && horaOperar(horario)
-        && !ordemAberta
-        && buscarSinal() == "Venda"
+        && !ordemAberta){                
+        
+        if (buscarSinal() == "Venda"
         //&& SymbolInfoDouble(_Symbol, SYMBOL_LAST) < MediaVendaArray[0]
         //&&  SymbolInfoDouble(_Symbol, SYMBOL_LAST) < MediaSuperArray[0]
         )
         {
+        
+            
             // datetime expiration = TimeTradeServer() + PeriodSeconds(PERIOD_M30);        
             //double precoReferencia = BarData[0].low;
             double precoReferencia = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
             // operacao.SellStop(1,precoReferencia,_Symbol,precoReferencia + loss,precoReferencia - gain,ORDER_TIME_SPECIFIED,expiration);
-             buscarSinal();
+            
             operacao.Sell(1, _Symbol, precoReferencia, precoReferencia + loss, precoReferencia - gain);
 
+        }
         }
 
 
@@ -229,16 +269,20 @@ string buscarSinal()
     && topo[0] - topo[1] > diferencaTopoFundo
     && fundo[0] > fundo[1]
     && fundo[0] - fundo[1] > diferencaTopoFundo
-    ) 
+    ) {
     
     return "Compra";
+    
+    }
     
     else if (topo[0] < topo[1] 
     && topo[1] - topo[0] > diferencaTopoFundo
     && fundo[0] < fundo[1]
     && fundo[1] - fundo[0] > diferencaTopoFundo
-    ) 
+    ) {
+    topoEntrada = fundo[0] ;
     return "Venda";
+    }
     
     else return "Consolidacao";
     
