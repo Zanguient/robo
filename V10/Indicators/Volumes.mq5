@@ -10,7 +10,7 @@
 #property indicator_buffers 2
 #property indicator_plots   1
 #property indicator_type1   DRAW_COLOR_HISTOGRAM
-#property indicator_color1  Green,Red
+#property indicator_color1  Green,Red,Blue
 #property indicator_style1  0
 #property indicator_width1  1
 #property indicator_minimum 0.0
@@ -20,8 +20,18 @@ input ENUM_APPLIED_VOLUME InpVolumeType=VOLUME_TICK; // Volumes
 double                    ExtVolumesBuffer[];
 double                    ExtColorsBuffer[];
 
-double                    VolumeCompra  = 0;
-double                    VolumeVenda = 0;
+double MediaZigZagHigh[];
+double MediaZigZagLow[];
+
+double topo[4];
+double fundo[4];
+
+int contadorTopo = 0;
+int contadorFundo = 0;
+
+int mZigZag;
+
+input double diferencaTopoFundo = 0;
 //+------------------------------------------------------------------+
 //| Custom indicator initialization function                         |
 //+------------------------------------------------------------------+
@@ -34,6 +44,8 @@ void OnInit()
    IndicatorSetString(INDICATOR_SHORTNAME,"Volumes");
 //---- indicator digits
    IndicatorSetInteger(INDICATOR_DIGITS,0);
+   
+   mZigZag = iCustom(Symbol(), Period(), "ZigZag", 12, 5, 3);
 //----
   }
 //+------------------------------------------------------------------+
@@ -50,6 +62,8 @@ int OnCalculate(const int rates_total,
                 const long &volume[],
                 const int &spread[])
   {
+  
+  
 //---check for rates total
    if(rates_total<2)
       return(0);
@@ -59,9 +73,9 @@ int OnCalculate(const int rates_total,
    if(start<1) start=1;
 //--- main cycle
    if(InpVolumeType==VOLUME_TICK)
-      CalculateVolume(start,rates_total,tick_volume,open,close);
+      CalculateVolume(start,rates_total,tick_volume);
    else
-      CalculateVolume(start,rates_total,volume,open,close);
+      CalculateVolume(start,rates_total,volume);
 //--- OnCalculate done. Return new prev_calculated.
    return(rates_total);
   }
@@ -70,83 +84,89 @@ int OnCalculate(const int rates_total,
 //+------------------------------------------------------------------+
 void CalculateVolume(const int nPosition,
                      const int nRatesCount,
-                     const long &SrcBuffer[],
-                     const double &open[],
-                     const double &close[])
+                     const long &SrcBuffer[])
   {
    ExtVolumesBuffer[0]=(double)SrcBuffer[0];
    ExtColorsBuffer[0]=0.0;
 //---
-   for(int i=nPosition;i<nRatesCount && !IsStopped();i++)
-     {
-      //--- get some data from src buffer
-      
-      
-      double dPrevVolume=(double)SrcBuffer[i-1];
-      double dCurrVolume=(double)SrcBuffer[i] + (double)SrcBuffer[i-1];
-      
-      //--- calculate indicator
+   
+      ExtVolumesBuffer[0]=1;
       
       
       
-      
-      
-      //if(dCurrVolume>dPrevVolume)
-      if (open[i] < close[i]) VolumeCompra = VolumeCompra + dCurrVolume;         
-      else VolumeVenda = VolumeVenda +  dCurrVolume;
-      
-      //1 vermelho
-      //0 verde
-      
-      if (ExtColorsBuffer[i-1] == 1 && VolumeVenda < VolumeCompra )  {
-      
-        ExtVolumesBuffer[i] = dCurrVolume;
-        ExtColorsBuffer[i]=0.0;
-        VolumeCompra = dCurrVolume;
-        VolumeVenda = 0;
-      
-      } 
-      
-      else if (ExtColorsBuffer[i-1] == 1 && VolumeVenda > VolumeCompra )  {
-      
-        ExtVolumesBuffer[i] = VolumeVenda;
-        ExtColorsBuffer[i]=1.0;
-      
-      }
-      
-      else if (ExtColorsBuffer[i-1] == 0 && VolumeVenda > VolumeCompra )  {
-      
-      
-      ExtVolumesBuffer[i] = dCurrVolume;
-        ExtColorsBuffer[i]=1.0;
-        VolumeCompra = 0;
-        VolumeVenda = dCurrVolume;
-      
-      }   
-      
-      else if (ExtColorsBuffer[i-1] == 0 && VolumeVenda < VolumeCompra )  {
-      
-         ExtVolumesBuffer[i] = VolumeCompra;
-        ExtColorsBuffer[i]=0.0;
-      
-      } 
-         
-         
-     
-     
-     
-     /* ExtColorsBuffer[i]=0.0;
-         ExtVolumesBuffer[i]= dCurrVolume;
-         
-         ExtColorsBuffer[i]=1.0;
-         ExtVolumesBuffer[i]= dCurrVolume;*/
-     
-     //if ExtColorsBuffer[i-1] == 1
-     
-     
-    
-     
+         ExtColorsBuffer[0]=buscarSinal();
+   
 //---
   }
-  }
 //+------------------------------------------------------------------+
+
+
+int buscarSinal()
+{
+    ArraySetAsSeries(MediaZigZagHigh, true);
+    ArraySetAsSeries(MediaZigZagLow, true);
+    
+
+    
+    CopyBuffer(mZigZag, 1, 0, 100, MediaZigZagHigh);
+    CopyBuffer(mZigZag, 2, 0, 100, MediaZigZagLow);    
+
+    contadorTopo = 0;
+    contadorFundo = 0;
+
+    int x;
+
+    for (x = 0; x < 99; x++)
+    {
+       
+
+        if (contadorTopo < 4)
+        {
+            if ((MediaZigZagHigh[x] != 0.0))
+            {
+                //printf("H:" + MediaZigZagHigh[x]);
+                topo[contadorTopo] = MediaZigZagHigh[x];
+                contadorTopo++;
+            }
+        }
+
+        if (contadorFundo < 4)
+        {
+            if ((MediaZigZagLow[x] != 0.0))
+            {
+                //printf("H:" + MediaZigZagLow[x]);
+                fundo[contadorFundo] = MediaZigZagLow[x];
+                contadorFundo++;
+
+            }
+        }
+
+    }
+    
+    if (topo[0] > topo[1] 
+    && topo[0] - topo[1] > diferencaTopoFundo
+    && fundo[0] > fundo[1]
+    && fundo[0] - fundo[1] > diferencaTopoFundo
+    ) {
+    
+    return 0;
+    
+    }
+    
+    else if (topo[0] < topo[1] 
+    && topo[1] - topo[0] > diferencaTopoFundo
+    && fundo[0] < fundo[1]
+    && fundo[1] - fundo[0] > diferencaTopoFundo
+    ) {
+    
+    return 1;
+    }
+    
+    else return 2;
+    
+     
+    
+
+    
+
+}
