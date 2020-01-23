@@ -114,21 +114,21 @@ datetime CreateDateTime(DATE_TYPE nReturnType=DAILY,datetime dtDay=D'2000.01.01 
    return dtReturnDate;
   }
 
-sinput  string              Indicator_Name="Volume Weighted Average Price (VWAP)";
-input   PRICE_TYPE          Price_Type              = CLOSE_HIGH_LOW;
-input   bool                Enable_Daily            = true;
-input   bool                Enable_Weekly           = true;
-input   bool                Enable_Monthly          = true;
-input   bool                Enable_Level_01         = false;
-input   int                 VWAP_Level_01_Period    = 5;
-input   bool                Enable_Level_02         = false;
-input   int                 VWAP_Level_02_Period    = 13;
-input   bool                Enable_Level_03         = false;
-input   int                 VWAP_Level_03_Period    = 20;
-input   bool                Enable_Level_04         = false;
-input   int                 VWAP_Level_04_Period    = 30;
-input   bool                Enable_Level_05         = false;
-input   int                 VWAP_Level_05_Period    = 40;
+  string              Indicator_Name="Volume Weighted Average Price (VWAP)";
+   PRICE_TYPE          Price_Type              = CLOSE_HIGH_LOW;
+   bool                Enable_Daily            = true;
+   bool                Enable_Weekly           = false;
+   bool                Enable_Monthly          = false;
+   bool                Enable_Level_01         = false;
+   int                 VWAP_Level_01_Period    = 5;
+   bool                Enable_Level_02         = false;
+   int                 VWAP_Level_02_Period    = 13;
+   bool                Enable_Level_03         = false;
+   int                 VWAP_Level_03_Period    = 20;
+   bool                Enable_Level_04         = false;
+   int                 VWAP_Level_04_Period    = 30;
+   bool                Enable_Level_05         = false;
+   int                 VWAP_Level_05_Period    = 40;
 
 bool        Show_Daily_Value    = true;
 bool        Show_Weekly_Value   = true;
