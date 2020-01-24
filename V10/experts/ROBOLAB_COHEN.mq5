@@ -52,6 +52,7 @@ input bool usarSmAtr = false; // Usar Indicador
 
 input string cabecario7;     // ====== STOP MOVEL - CANDLE =======
 input bool usarSmCd = false; // Usar Indicador
+input double margemSmCandle = 50; // Usar Indicador
 
 input string cabecario8;     // ====== STOP MOVEL - HILO =========
 input bool usarSmHi = false; // Usar Indicador
@@ -95,6 +96,21 @@ input string cabecario15;          // ====== INDICADORES - OBV ========
 input bool usarObv = false;        // Usar Indicador
 input sinalIndicador sinalObv = 3; // Sinal Indicador
 
+input string cabecario20;          // ====== INDICADORES - Stoch ========
+input bool usarStoch = false;        // Usar Indicador
+
+input string cabecario21;          // ====== INDICADORES - RSI ========
+input bool usarRsi = false;        // Usar Indicador
+
+input string cabecario22;          // ====== INDICADORES - VWAP ========
+input bool usarVwap = false;        // Usar Indicador
+input double distancia = 250;      // Usar Distancia
+
+
+input string cabecario18;          // ====== INDICADORES - VOLUME ========
+input bool usarVolume = false;        // Usar Indicador
+input double volumeMinimo = 15000;  // Fim da Faixa Compra
+
 input string cabecario16;             // ====== HORARIOS =================
 input string horarioAbrMin = "09:00"; // Abertura MIN
 input string horarioAbrMax = "17:00"; // Abertura MAX
@@ -117,6 +133,10 @@ int mIfr;
 int mMacd;
 int mObv;
 int mZigZag;
+int mVolume;
+int mStoch;
+int mRSI;
+int mVwap;
 
 double cohenArray4[];
 double cohenArray5[];
@@ -135,6 +155,14 @@ double atrArray[];
 double ifrArray[];
 double macdArray[];
 double obvArray[];
+double volumeArray[];
+double RSIArray[];
+double VwapArray[];
+double smHiloCorArray[];
+
+bool breakEvenExecutado = false;
+
+double mStochArray[];
 
 MqlRates BarData[1];
 
@@ -165,11 +193,22 @@ int OnInit()
     if (usarSmAtr)
         mSmAtr = iCustom(_Symbol, _Period, "ATR", 14);
     if (usarSmHi)
-        mSmHilo = iCustom(_Symbol, _Period, "HILO", VOLUME_TICK);
+        mSmHilo = iCustom(_Symbol, _Period, "HILOE", 13,MODE_EMA,-1);
     if (usarSmMe)
         mSmMedia = iMA(_Symbol, _Period, mediaSm, 0, MODE_EMA, PRICE_CLOSE);
     if (usarSmSar)
         mSmSar = iSAR(_Symbol, _Period, sarPasso, sarMaximo);
+        
+        if (usarVolume)
+        mVolume = iVolumes(_Symbol, _Period, VOLUME_TICK);    
+         if (usarStoch)
+         mStoch = iStochastic(Symbol(), Period(), 5, 3, 3, MODE_SMA, STO_LOWHIGH);
+         
+         if (usarRsi)
+         mRSI = iRSI(Symbol(), Period(), 14, PRICE_CLOSE);
+         
+         if (usarVwap)
+        mVwap = iCustom(_Symbol, _Period, "VWAP");
 
     //---
     return (INIT_SUCCEEDED);
@@ -228,6 +267,12 @@ void OnTick()
             ArraySetAsSeries(atrArray, true);
             CopyBuffer(mAtr, 0, 0, 3, atrArray);
         }
+        
+        if (usarStoch)
+        {
+            ArraySetAsSeries(mStochArray, true);
+            CopyBuffer(mStoch, 1, 0, 3, mStochArray);
+        }
 
         if (usarIfr)
         {
@@ -256,7 +301,10 @@ void OnTick()
         if (usarSmHi)
         {
             ArraySetAsSeries(smHiloArray, true);
+            ArraySetAsSeries(smHiloCorArray, true);
             CopyBuffer(mSmHilo, 0, 0, 3, smHiloArray);
+             CopyBuffer(mSmHilo, 2, 0, 3, smHiloCorArray);
+          
         }
 
         if (usarSmMe)
@@ -270,19 +318,44 @@ void OnTick()
             ArraySetAsSeries(smSarArray, true);
             CopyBuffer(mSmSar, 0, 0, 3, smSarArray);
         }
+        
+        if (usarVolume)
+        {
+            ArraySetAsSeries(volumeArray, true);
+            CopyBuffer(mVolume, 0, 0, 3, volumeArray);
+        }
+        
+        if (usarRsi)
+        {
+            ArraySetAsSeries(RSIArray, true);
+            CopyBuffer(mRSI, 0, 0, 3, RSIArray);
+        }
+        
+         if (usarVwap)
+        {
+            ArraySetAsSeries(VwapArray, true);
+            CopyBuffer(mVwap, 0, 0, 3, VwapArray);
+        }
+        
+        if (!breakEvenExecutado)  breakevenExecutar();
 
         if (horaOperar(horarioAbrMax) && cohenArray4[1] == 1 
         && (!usarAtr || (atrArray[1] * fatorAtr < BarData[0].close - BarData[0].open)) 
         && (!usarAtr || (atrArray[1] > atrArray[2] && sinalAtr == 1) || (atrArray[1] < atrArray[2]  && sinalAtr == 2) || sinalAtr == 3) 
         && (!usarObv || (obvArray[0] > obvArray[1] && sinalObv == 1) || (obvArray[0] < obvArray[1] && sinalObv == 2) || sinalObv == 3) 
         && (!usarMacd || (macdArray[1] > macdArray[2] && sinalMacd == 1) || (macdArray[1] < macdArray[2] && sinalMacd == 2) || sinalMacd == 3) 
+        && (!usarVolume || (volumeArray[1] > volumeMinimo)) 
+        && (!usarStoch || (mStochArray[0] < 80))
+        && (!usarRsi || (RSIArray[1] < 70))
         && !ordemAberta
-        && !funcao_verifica_meta_ou_perda_atingida("Meta", metaLossDi, metaGainDi, true)  
+        && !funcao_verifica_meta_ou_perda_atingida("Meta", metaLossDi, metaGainDi, true)
+        && (!usarVwap || (VwapArray[1] - BarData[0].close > distancia ))  
         )
         {
             // ver ser a variacao 0 -> 1 ATR e OBV
             datetime expiration = TimeTradeServer() + PeriodSeconds(tempoOrdem);
             double precoReferencia = 0;
+              double lossref = 0;
 
             buscarSinal();
             fecharTodasOrdensPendentes();
@@ -291,9 +364,14 @@ void OnTick()
                 precoReferencia = BarData[0].high + margemEntrada;
             else
                 precoReferencia = BarData[0].close + margemEntrada;
+                
+                  //if (precoReferencia - loss < fundo[0] ) lossref = fundo[0];
+                //else 
+                lossref = precoReferencia - loss;
 
-            if (precoReferencia - loss < fundo[0])
-                operacao.BuyStop(qtdContratos, precoReferencia, _Symbol, fundo[0], precoReferencia + gain, ORDER_TIME_SPECIFIED, expiration);
+            //if (precoReferencia - loss < fundo[0])
+                operacao.BuyStop(qtdContratos, precoReferencia, _Symbol, lossref, precoReferencia + gain, ORDER_TIME_SPECIFIED, expiration);
+                breakEvenExecutado = false;
 
             //operacao.Buy(1, _Symbol, precoReferencia, precoReferencia - loss, precoReferencia + gain);
         }
@@ -303,6 +381,10 @@ void OnTick()
         && (!usarObv || (obvArray[0] > obvArray[1] && sinalObv == 1) || (obvArray[0] < obvArray[1] && sinalObv == 2) || sinalObv == 3) 
         && (!usarMacd || (macdArray[1] > macdArray[2] && sinalMacd == 1) || (macdArray[1] < macdArray[2] && sinalMacd == 2) || sinalMacd == 3) 
         && !ordemAberta
+        && (!usarVolume || (volumeArray[1] > volumeMinimo) )
+        && (!usarStoch || (mStochArray[0] > 20))
+        && (!usarRsi || (RSIArray[1] > 30))
+        && (!usarVwap || (BarData[0].close - VwapArray[1] > distancia ))
         && !funcao_verifica_meta_ou_perda_atingida("Meta", metaLossDi, metaGainDi, true)        
         )
         {
@@ -311,6 +393,7 @@ void OnTick()
             datetime expiration = TimeTradeServer() + PeriodSeconds(tempoOrdem);
 
             double precoReferencia = 0;
+            double lossref = 0;
 
             buscarSinal();
             fecharTodasOrdensPendentes();
@@ -319,9 +402,14 @@ void OnTick()
                 precoReferencia = BarData[0].low - margemEntrada;
             else
                 precoReferencia = BarData[0].close - margemEntrada;
+                
+                //if (precoReferencia + loss > topo[0] ) lossref = topo[0];
+                //else 
+                lossref = precoReferencia + loss;
 
-            if (precoReferencia + loss > topo[0])
-                operacao.SellStop(qtdContratos, precoReferencia, _Symbol, topo[0], precoReferencia - gain, ORDER_TIME_SPECIFIED, expiration);
+            //if (precoReferencia + loss > topo[0])
+                operacao.SellStop(qtdContratos, precoReferencia, _Symbol, lossref, precoReferencia - gain, ORDER_TIME_SPECIFIED, expiration);
+                breakEvenExecutado = false;
 
             //operacao.Sell(1, _Symbol, precoReferencia, precoReferencia + loss, precoReferencia - gain);
         }
@@ -412,18 +500,18 @@ void StopGainMovelCandle()
     if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
     {
 
-        if (BarData[0].close - PrecoAberturaPosicao > valorAtivacaoSm)
+        if (BarData[0].close - PrecoAberturaPosicao > valorAtivacaoSm && BarData[0].low - margemSmCandle > PrecoAberturaPosicao)
         {
             double precoAtual = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
-            operacao.PositionModify(PositionTicket, BarData[0].low, precoAtual + gain);
+            operacao.PositionModify(PositionTicket, BarData[0].low - margemSmCandle, precoAtual + gain);
         }
     }
     else
     {
-        if (PrecoAberturaPosicao - BarData[0].close > valorAtivacaoSm)
+        if (PrecoAberturaPosicao - BarData[0].close > valorAtivacaoSm && BarData[0].high + margemSmCandle < PrecoAberturaPosicao )
         {
             double precoAtual = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
-            operacao.PositionModify(PositionTicket, BarData[0].high, precoAtual - gain);
+            operacao.PositionModify(PositionTicket, BarData[0].high + margemSmCandle, precoAtual - gain);
         }
     }
 }
@@ -483,7 +571,7 @@ void StopGainMovelHilo()
         if (BarData[0].close - PrecoAberturaPosicao > valorAtivacaoSm)
         {
             double precoAtual = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
-            if (smHiloArray[1] > precoAtual)
+            if (smHiloArray[1] < precoAtual && smHiloCorArray[1] == 0)
             {
                 int loss = 0;
                 int multiplicador = smHiloArray[1] / 5;
@@ -497,10 +585,10 @@ void StopGainMovelHilo()
         if (PrecoAberturaPosicao - BarData[0].close > valorAtivacaoSm)
         {
             double precoAtual = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
-            if (smHiloArray[1] < precoAtual)
+            if (smHiloArray[1] > precoAtual && smHiloCorArray[1] == 1)
             {
                 int loss = 0;
-                int multiplicador = smSarArray[1] / 5;
+                int multiplicador = smHiloArray[1] / 5;
                 loss = multiplicador * 5;
                 operacao.PositionModify(PositionTicket, loss, precoAtual - gain);
             }
@@ -729,9 +817,9 @@ bool horarioFecharPosicaoIndice(string horarioMaximo, float precoAtual, string a
 
     string horaCorrenteStr = TimeToString(horaCorrente, TIME_MINUTES);
 
-    horaCorrente = StringToTime("2019.01.01 " + horaCorrenteStr);
+    horaCorrente = StringToTime("2020.01.01 " + horaCorrenteStr);
 
-    if (StringToTime("2019.01.01 " + horaCorrenteStr) > StringToTime("2019.01.01 " + horarioMaximo))
+    if (StringToTime("2020.01.01 " + horaCorrenteStr) > StringToTime("2020.01.01 " + horarioMaximo))
     {
         if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
           //  operacao.PositionModify(PositionTicket, precoAtual + 20, precoAtual - 20);
@@ -746,4 +834,33 @@ bool horarioFecharPosicaoIndice(string horarioMaximo, float precoAtual, string a
     }
     else return false;
 
+}
+
+void breakevenExecutar()
+{
+    
+    ulong PositionTicket = PositionGetInteger(POSITION_TICKET);
+    double StopLossCorrente = PositionGetDouble(POSITION_SL);
+    double GainCorrente = PositionGetDouble(POSITION_TP);
+    double PrecoAberturaPosicao = PositionGetDouble(POSITION_PRICE_OPEN);
+
+    if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+    {
+
+        if (BarData[0].close - PrecoAberturaPosicao > breakEven)
+        {
+            double precoAtual = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
+            operacao.PositionModify(PositionTicket, PrecoAberturaPosicao, precoAtual + gain);
+            breakEvenExecutado = true;
+        }
+    }
+    else
+    {
+        if (PrecoAberturaPosicao - BarData[0].close > breakEven)
+        {
+            double precoAtual = SymbolInfoDouble(_Symbol, SYMBOL_LAST);
+            operacao.PositionModify(PositionTicket, PrecoAberturaPosicao, precoAtual - gain);
+            breakEvenExecutado = true;
+        }
+    }
 }
